@@ -1,6 +1,6 @@
 package com.study.tuco.reactive.config
 
-import com.study.tuco.reactive.Handler
+import com.study.tuco.reactive.handler.R2dbcRepositoryBookHandler
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.reactive.function.server.RouterFunction
@@ -10,7 +10,7 @@ import org.springframework.web.reactive.function.server.router
 @Configuration("bookRouterV1")
 class RouterConfig {
     @Bean
-    fun routeBook(bookHandler: Handler): RouterFunction<ServerResponse> {
+    fun routeBook(bookHandler: R2dbcRepositoryBookHandler): RouterFunction<ServerResponse> {
         return router {
             listOf(
                 GET("/v1/books/{id}", bookHandler::getBook),

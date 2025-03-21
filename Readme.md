@@ -443,3 +443,159 @@ interface BookRepositoryR2dbc: ReactiveCrudRepository<BookEntity, Long> {
     fun findByIsbn(isbn: String): Mono<BookEntity>
 }
 ```
+
+
+## R2DBC EntityTemplate
+
+Spring Data R2dbc 외에도 가독성 좋은 SQL 쿼리문을 작성하는것과 같은 자연스러운 방식으로
+메서드를 조합하여 데이터베이스와 인터랙션 할 수 있는 R2dbcEntityTemplate를 제공한다.
+
+```
+템플릿/콜백 패턴이 적용된 JdbcTemplate처럼 R2dbcEntityTemplate 역시 템플릿을 사용한다.
+R2dbcEntityTemplate은 JPA 기술에 사용되는 Query DSL과 유사한 방식은 Query 생성 메서드 조합과
+Entity 객체를 템플릿에 전달하여 데이터베이스와 인터랙션 한다.
+```
+
+```kotlin
+@Service
+class EntityTemplateHandler(
+    val r2dbcEntityTemplate: R2dbcEntityTemplate
+) {
+    fun createBook(bookEntity: BookEntity) {
+        verifyExitIsbn(bookEntity.isbn)
+            .doOnNext { r2dbcEntityTemplate.insert(bookEntity) }
+    }
+
+    fun updateBook(bookEntity: BookEntity) {
+        findVerifiedBook(bookEntity.isbn)
+            .doOnNext { r2dbcEntityTemplate.update(bookEntity) }
+    }
+    
+    fun findBooks(): Mono<List<BookEntity>> {
+        return r2dbcEntityTemplate.select(BookEntity::class.java).all().collectList()
+    }
+
+    private fun verifyExitIsbn(isbn: String): Mono<Unit> {
+        return r2dbcEntityTemplate.selectOne(Query.query(where("isbn").`is`(isbn)), BookEntity::class.java)
+            .flatMap { isbn ->
+                if (isbn != null) {
+                    Mono.error(RuntimeException("ISBN already exists"))
+                } else {
+                    Mono.empty()
+                }
+            }
+    }
+
+    private fun findVerifiedBook(isbn: String): Mono<BookEntity> {
+        return r2dbcEntityTemplate.selectOne(Query.query(where("isbn").`is`(isbn)), BookEntity::class.java)
+            .switchIfEmpty(Mono.error(RuntimeException("ISBN NOT exists")))
+    }
+}
+```
+* selectOne 메서드는 한 건의 데이터를 조회하는데 사용되며, query객체와 엔티티 클래스의 class 객체를 파라미터로 가진다.
+* where 메서드는 sql쿼리 문에서 where 절을 표현하는 creteria객체이다
+* is 메서드는 sql 쿼리문에서 equal을 표현한다.
+* select 메서드는 sql 쿼리문에서 select 절을 표현하며, from(), as(), one(), all() 등의 종료 메서드와 함께 사용 된다.
+
+```
+R2dbcEntityTemplate은 SQL 쿼리문의 시작구문인 SELECT, INSERT, UPDATE, DELETE 등에 해당되는 select(), insert(), update(), delete() 메서드를 Entrypoint method라고 한다.
+all(), count(), one() 등의 메서드처럼 sql 문을 생성하고 최종적으로 sql문을 실행하는 메서드를 terminating method 라고 부른다.
+```
+
+### terminating method
+* first(): 첫 번째 행만 소비하고 Mono를 반환합니다. 쿼리가 결과를 반환하지 않으면 반환된 Mono는 객체를 방출하지 않고 완료됩니다.
+* one(): 정확히 한 행을 소비하고 Mono를 반환합니다. 쿼리가 결과를 반환하지 않으면 반환된 Mono는 객체를 방출하지 않고 완료됩니다. 쿼리가 두 개 이상의 행을 반환하면 Mono는 IncorrectResultSizeDataAccessException을 방출하며 예외적으로 완료됩니다.
+* all(): 반환된 모든 행을 소비하고 Flux를 반환합니다.
+* count(): 카운트 프로젝션을 적용하여 Mono<Long>을 반환합니다.
+* exists(): 쿼리가 행을 반환하는지 여부를 Mono<Boolean>으로 반환합니다.
+
+### criteria method
+* and(Stirng column): Sql 쿼리문에서 and 연산자에 해당되며 컬럼명에 해당하는 criteria를 추가한 새로운 criteria를 리턴한다.
+* or(String column): Sql 쿼리문에서 or 연산자에 해당되며 컬럼명에 해당하는 criteria를 추가한 새로운 criteria를 리턴한다.
+* greaterThan(Object value): Sql 쿼리문에서 > 연산자에 해당되며 value보다 큰 값을 가지는 criteria를 리턴한다.
+* greaterThanOrEquals(Object value): Sql 쿼리문에서 >= 연산자에 해당되며 value보다 크거나 같은 값을 가지는 criteria를 리턴한다.
+* in(Object... values): Sql 쿼리문에서 in 연산자에 해당되며 values에 해당하는 값을 가지는 criteria를 리턴한다.
+* in(collection<?> values): Sql 쿼리문에서 in 연산자에 해당되며 values에 해당하는 값을 가지는 criteria를 리턴한다.
+* isNull(): Sql 쿼리문에서 is null 연산자에 해당되며 null 값을 가지는 criteria를 리턴한다.
+* isNotnull(): Sql 쿼리문에서 is not null 연산자에 해당되며 null이 아닌 값을 가지는 criteria를 리턴한다.
+* lessThan(Object value): Sql 쿼리문에서 < 연산자에 해당되며 value보다 작은 값을 가지는 criteria를 리턴한다.
+* lessThanOrEquals(Object value): Sql 쿼리문에서 <= 연산자에 해당되며 value보다 작거나 같은 값을 가지는 criteria를 리턴한다.
+* like(String value): Sql 쿼리문에서 like 연산자에 해당되며 value와 일치하는 값을 가지는 criteria를 리턴한다.
+* not(Object o): Sql 쿼리문에서 not 연산자에 해당되며 not 연산을 수행하는 criteria를 리턴한다.
+* notIn(Object... values): Sql 쿼리문에서 not in 연산자에 해당되며 values에 해당하지 않는 값을 가지는 criteria를 리턴한다.
+* notIn(Collection<?> values): Sql 쿼리문에서 not in 연산자에 해당되며 values에 해당하지 않는 값을 가지는 criteria를 리턴한다.
+
+### SpringDate R2dbc 에서의 페이지네이션 처리
+Spring Data R2dbc에서 데이터 액세스를 위해 Repository를 이용할 경우, 페이지네이션 처리는 다른 Spring Data 패밀리 프로젝트에서의
+페이지네이션 처리와 별반 다를게 없다.
+
+
+#### R2dbcRepository
+```kotlin
+@Repository
+interface BookRepositoryR2dbc: ReactiveCrudRepository<BookEntity, Long> {
+    ...
+
+    fun findAllBy(pageable: Pageable): Flux<BookEntity>
+}
+```
+
+```kotlin
+
+@Service
+class R2dbcRepositoryBookHandler(
+  val bookValidator: BookValidator,
+  val bookRepositoryR2dbc: BookRepositoryR2dbc
+) {
+  fun findBooks(serverRequest: ServerRequest): Mono<ServerResponse> {
+    val bookDto = serverRequest.bodyToMono(BookDto::class.java)
+    return bookDto.flatMap { dto ->
+      ServerResponse.ok().body(
+        bookRepositoryR2dbc.findAllBy(PageRequest.of(dto.page - 1, dto.size, Sort.by("bookId"))).collectList(),
+        BookEntity::class.java
+      )
+    }
+  }
+}
+
+```
+
+
+#### R2dbcEntityTemplate
+
+```kotlin
+@Service
+class EntityTemplateHandler(
+    val r2dbcEntityTemplate: R2dbcEntityTemplate
+) {
+  fun findBooks(page: Long, size: Long): Mono<List<BookEntity>> {
+    return r2dbcEntityTemplate
+      .select(BookEntity::class.java)
+      .count()
+      .flatMap { total ->
+        val skipAndTake = getSkipAndTake(total, page, size)
+        r2dbcEntityTemplate
+          .select(BookEntity::class.java)
+          .all()
+          .sort()
+          .skip(skipAndTake.t1)
+          .take(skipAndTake.t2)
+          .collectList()
+      }
+  }
+
+  private fun getSkipAndTake(total: Long, movePage: Long, size: Long): Tuple2<Long, Long> {
+    val totalPages = Math.ceil(total.toDouble() / size).toLong()
+    val page = if (movePage > totalPages) totalPages else movePage
+    val skip = if (total - (page * size) < 0) 0 else total - (page * size)
+    val take = if (total - (page * size) < 0) total - ((page - 1) * size) else size
+
+    return Tuples.of(skip, take)
+  }
+}
+```
+1. R2dbcEntityTemplate의 경우 먼저 count() operator로 저장된 도서의 총 개수를 구한뒤에 flatmap operator 내부에서
+   페이지 네이션 처리를 수행한다.
+2. skip() 은 findbooks 의 파라미터로 전달받은 페이지의 시작 지점으로 이동하기 위해 페이지 수만큼 emit된 데이터를 건너뛰는 역할을 수행한다.
+3. take() operator는 findbooks의 파라미터로 전달받은 페이지의 데이터 개수만큼 데이터를 가져오는 역할을 수행한다.
+4. getSkipAndTake() 메서드는 총 데이터 개수, 이동할 페이지, 페이지 당 데이터 개수를 파라미터로 받아 skip과 take 값을 계산하여 Tuple2로 리턴한다.

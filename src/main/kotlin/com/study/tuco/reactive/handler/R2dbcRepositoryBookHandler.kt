@@ -1,9 +1,12 @@
-package com.study.tuco.reactive
+package com.study.tuco.reactive.handler
 
 import com.study.tuco.reactive.model.Book
+import com.study.tuco.reactive.model.BookDto
 import com.study.tuco.reactive.model.BookEntity
 import com.study.tuco.reactive.repository.BookRepositoryR2dbc
 import com.study.tuco.reactive.validator.BookValidator
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
 import org.springframework.validation.BeanPropertyBindingResult
 import org.springframework.web.reactive.function.server.ServerRequest
@@ -12,7 +15,7 @@ import org.springframework.web.server.ServerWebInputException
 import reactor.core.publisher.Mono
 
 @Service
-class Handler(
+class R2dbcRepositoryBookHandler(
     val bookValidator: BookValidator,
     val bookRepositoryR2dbc: BookRepositoryR2dbc
 ) {
@@ -59,4 +62,10 @@ class Handler(
         }
     }
 
+    fun findBooks(serverRequest: ServerRequest): Mono<ServerResponse> {
+        val bookDto = serverRequest.bodyToMono(BookDto::class.java)
+        return bookDto.flatMap { dto ->
+            ServerResponse.ok().body(bookRepositoryR2dbc.findAllBy(PageRequest.of(dto.page - 1, dto.size, Sort.by("bookId"))).collectList(), BookEntity::class.java)
+        }
+    }
 }
