@@ -599,3 +599,36 @@ class EntityTemplateHandler(
 2. skip() 은 findbooks 의 파라미터로 전달받은 페이지의 시작 지점으로 이동하기 위해 페이지 수만큼 emit된 데이터를 건너뛰는 역할을 수행한다.
 3. take() operator는 findbooks의 파라미터로 전달받은 페이지의 데이터 개수만큼 데이터를 가져오는 역할을 수행한다.
 4. getSkipAndTake() 메서드는 총 데이터 개수, 이동할 페이지, 페이지 당 데이터 개수를 파라미터로 받아 skip과 take 값을 계산하여 Tuple2로 리턴한다.
+
+
+## 예외 처리
+### onErrorResume을 이용한 예외처리
+onErrorResume() 은 에러이벤트가 발생했을때 **에러 이벤트를 Downstream으로 전파하지 않고** 대체 Publisher를 통해
+에러 이벤트에 대한 대체값을 emit하거나 발생한 에러 이벤트를 래핑한 후 emit하는 방식으로 에러를 처리한다.
+```kotlin
+fun createBook(
+        serverRequest: ServerRequest
+    ): Mono<ServerResponse> {
+        println("Creating a book")
+        return serverRequest.bodyToMono(BookEntity::class.java)
+            .doOnNext { it -> validate(it) } // 유효성 검증을 위해 주입받은 BookValidator 를 이용해 doOnNext에서 validate 메서드를 호출
+            .flatMap {
+                bookRepositoryR2dbc.save(it)
+            }
+            .flatMap { ServerResponse.ok().build() }
+            .onErrorResume(IllegalArgumentException::class.java) { illegalArgumentException ->
+                ServerResponse.badRequest().bodyValue(ErrorResponse(HttpStatus.BAD_REQUEST, illegalArgumentException.message!!))
+            }
+            .onErrorResume(Exception::class.java) { exception ->
+                ServerResponse.unprocessableEntity().bodyValue(ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, exception.message!!))
+            }
+        /**
+         * Spring webflux에서는 유효성 검증을 진행하는 로직 역시 Operator 체인 안에서 진행됨.
+         */
+    }
+```
+
+
+### ErrorWebExceptionHandler를 이용한 예외 처리
+onErrorResume등의 operator를 이용한 예외처리는 사용하기 간편하나, 클래스 내에 여러개의 sequence가 존재하면 각 sequence마다 onErrorResume을 적용해야 하므로 중복 코드가 발생할 수 있다.
+이러한 문제를 해결하기 위해 Spring Webflux는 ErrorWebExceptionHandler를 제공한다.
