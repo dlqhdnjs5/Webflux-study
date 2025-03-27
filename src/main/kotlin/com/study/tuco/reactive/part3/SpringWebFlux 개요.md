@@ -643,3 +643,34 @@ class GlobalWebExceptionHandler(
 }
 
 ```
+ErrorWebExceptionHandler 외에 AbstractErrorWebExceptionHandler를 상속받아 구현할 수도 있다
+이는 이미 구현되어있으며, 메서드 몇개만 오버라이드해서 구현할수 있어 간편하다
+
+ex)
+```kotlin
+
+@Order(-2)
+@Component
+class MyExceptionHandler(
+  errorAttributes: ErrorAttributes,
+  applicationContext: ApplicationContext,
+  codecConfigurer: ServerCodecConfigurer,
+) : AbstractErrorWebExceptionHandler(errorAttributes, WebProperties.Resources(), applicationContext) {
+
+  init {
+    this.setMessageWriters(codecConfigurer.writers)
+    this.setMessageReaders(codecConfigurer.readers)
+  }
+
+
+  override fun getRoutingFunction(errorAttributes: ErrorAttributes): RouterFunction<ServerResponse> {
+    return RouterFunctions.route(RequestPredicates.all()) { request: ServerRequest ->
+      val errorProps = getErrorAttributes(request, false)
+      ServerResponse
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .contentType(MediaType.APPLICATION_JSON)
+        .bodyValue(mapOf("error" to errorProps["message"]))
+    }
+  }
+}
+```
