@@ -28,7 +28,8 @@ class R2dbcRepositoryBookHandler(
         return serverRequest.bodyToMono(BookEntity::class.java)
             .doOnNext { it -> validate(it) } // 유효성 검증을 위해 주입받은 BookValidator 를 이용해 doOnNext에서 validate 메서드를 호출
             .flatMap {
-                bookRepositoryR2dbc.save(it)
+                val result = bookRepositoryR2dbc.save(it)
+                result
             }
             .flatMap { ServerResponse.ok().build() }
             .onErrorResume(IllegalArgumentException::class.java) { illegalArgumentException ->
@@ -52,9 +53,7 @@ class R2dbcRepositoryBookHandler(
                 // Spring Data 패밀리 프로젝트에서는 엔티티 클래스에서 @Id 애너테이션이 추가된 필드의 값이 null 또는 0이 아니면 save() 메서드 호출시 INSERT 가 아닌 UPDATE 쿼리를 실행합니다.
             }
             .flatMap { ServerResponse.ok().build() }
-            .onErrorResume(IllegalArgumentException::class.java) { illegalArgumentException ->
-                ServerResponse.badRequest().bodyValue(ErrorResponse(HttpStatus.BAD_REQUEST, illegalArgumentException.message!!))
-            }
+            // onErrorResume 없이 GLobalWebExceptionHandler에서 처리
     }
 
     fun getBook(serverRequest: ServerRequest): Mono<ServerResponse> {
