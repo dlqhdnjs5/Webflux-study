@@ -1,7 +1,7 @@
 package com.study.tuco.reactive.handler
 
+import com.study.tuco.reactive.config.WebClientExample
 import com.study.tuco.reactive.model.Book
-import com.study.tuco.reactive.model.BookDto
 import com.study.tuco.reactive.model.BookEntity
 import com.study.tuco.reactive.model.ErrorResponse
 import com.study.tuco.reactive.repository.BookRepositoryR2dbc
@@ -19,7 +19,8 @@ import reactor.core.publisher.Mono
 @Service
 class R2dbcRepositoryBookHandler(
     val bookValidator: BookValidator,
-    val bookRepositoryR2dbc: BookRepositoryR2dbc
+    val bookRepositoryR2dbc: BookRepositoryR2dbc,
+    val webclientExampleTest: WebClientExample
 ) {
     fun createBook(
         serverRequest: ServerRequest
@@ -79,9 +80,28 @@ class R2dbcRepositoryBookHandler(
     }
 
     fun findBooks(serverRequest: ServerRequest): Mono<ServerResponse> {
-        val bookDto = serverRequest.bodyToMono(BookDto::class.java)
+        val page = serverRequest.queryParam("page").orElse("1").toInt()
+        val size = serverRequest.queryParam("size").orElse("10").toInt()
+
+        return ServerResponse.ok().body(bookRepositoryR2dbc.findAllBy(PageRequest.of(page - 1, size, Sort.by("bookId"))).collectList(), BookEntity::class.java)
+
+        /*val bookDto = serverRequest.bodyToMono(BookDto::class.java)
         return bookDto.flatMap { dto ->
             ServerResponse.ok().body(bookRepositoryR2dbc.findAllBy(PageRequest.of(dto.page - 1, dto.size, Sort.by("bookId"))).collectList(), BookEntity::class.java)
+        }*/
+    }
+
+    fun requestWebclient(serverRequest: ServerRequest): Mono<ServerResponse> {
+        val function = serverRequest.pathVariable("function")
+
+        if (function == "post") {
+            webclientExampleTest.exampleWebClientPost()
+        } else if (function == "put") {
+            webclientExampleTest.exampleWebClientPut()
+        } else if (function == "get") {
+            webclientExampleTest.exampleWebClientGet()
         }
+
+        return ServerResponse.ok().bodyValue("Hello, WebClient!")
     }
 }

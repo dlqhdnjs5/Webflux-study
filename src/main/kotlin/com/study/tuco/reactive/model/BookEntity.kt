@@ -3,7 +3,6 @@ package com.study.tuco.reactive.model
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.Id
 import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.relational.core.mapping.Column
 import org.springframework.data.relational.core.mapping.Table
 import java.time.LocalDateTime
 
@@ -18,7 +17,7 @@ data class BookEntity(
     val isbn: String,
     val publishDate: LocalDateTime,
     @CreatedDate// auditing 기능 적용
-    val createdAt: LocalDateTime?,
+    var createdAt: LocalDateTime?,
     @LastModifiedDate// auditing 기능 적용
-    val modifiedAt: LocalDateTime?
+    var modifiedAt: LocalDateTime?
 )

@@ -704,4 +704,94 @@ class MyExceptionHandler(
     }
   }
 }
+
+
+```
+
+## WebClient
+WebClient는 Spring 5부터 지원하는 Non-Blocking Http Request를 위한 리액티브 웹클라이언트로서 함수형 기반의 향상된 API를 제공한다.
+WebClient는 내부적으로 HTTP 클라이언트 라이브러리에게 HTTP request를 위임하며 기본 HTTP 클라이언트 라이브러리는 Reactor Netty이다.
+
+```kotlin
+@Component
+class WebClientExample {
+    companion object {
+        val HOST_URL = "http://localhost:8084"
+    }
+
+    val log = LoggerFactory.getLogger(WebClientExample::class.java)
+
+    fun exampleWebClientPost() {
+        val webclient: WebClient = WebClient.create()
+        val requestBody = BookEntity(
+            bookId = null,
+            titleKorean = "Korean Title",
+            titleEnglish = "English Title",
+            description = "Description",
+            author = "Author",
+            isbn = "ISBN",
+            publishDate = LocalDateTime.now(),
+            createdAt = null,
+            modifiedAt = null
+        )
+
+
+        val response: Mono<ResponseEntity<Void>> = webclient
+            .post().uri("${HOST_URL}/v1/books")
+            .bodyValue(requestBody)
+            .retrieve() // response를 어떤 형태로 얻을지에 대한 프로세스의 '시작' 을 선언하는 역할
+            .toEntity(Void::class.java) // 파라미터로 주어진 클래스의 형태로 변환한 response body가 포함된 ResponseEntity를 반환
+
+        response.subscribe { entity ->
+            log.info("Response status: ${entity.statusCode}")
+            log.info("Response header: ${entity.headers}")
+        }
+    }
+
+    fun exampleWebClientPut() {
+        val webclient: WebClient = WebClient.create(HOST_URL)
+        val requestBody = BookEntity(
+            bookId = 1,
+            titleKorean = "updated Korean Title",
+            titleEnglish = "updated English Title",
+            description = "updated Description",
+            author = "updated Author",
+            isbn = "updated ISBN",
+            publishDate = LocalDateTime.now(),
+            createdAt = null,
+            modifiedAt = null
+        )
+
+
+        val response: Mono<ResponseEntity<Void>> = webclient
+            .put().uri("/v1/books/{book-id}", 1)
+            .bodyValue(requestBody)
+            .retrieve()
+            .toEntity(Void::class.java)
+
+        response.subscribe { entity ->
+            log.info("Response status: ${entity.statusCode}")
+            log.info("Response header: ${entity.headers}")
+        }
+    }
+
+    fun exampleWebClientGet() {
+        val webclient: WebClient = WebClient.create(HOST_URL)
+        val response: Flux<BookEntity> = webclient
+            .get().uri { uriBuilder ->
+                uriBuilder.path("/v1/books")
+                    .queryParam("page", 1)
+                    .queryParam("size", 5)
+                    .build() }
+            .retrieve()
+            .bodyToFlux(BookEntity::class.java)
+        // bodyToFlux 를 통해 response body를 파라미터로 전달된 타입의 객체로 디코딩 합니다. 
+        // bodyToFlux는 bodyToMono와 달리 Java Collection 타입의 response body를 수신합니다.
+
+        response.subscribe { entity ->
+            log.info("Response: $entity")
+        }
+    }
+}
+
 ```

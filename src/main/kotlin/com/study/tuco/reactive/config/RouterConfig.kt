@@ -14,6 +14,8 @@ class RouterConfig {
         return router {
             listOf(
                 GET("/v1/books/{id}", bookHandler::getBook),
+                GET("/v1/books", bookHandler::findBooks),
+                POST("/v1/books/{function}", bookHandler::requestWebclient),
                 POST("/v1/books", bookHandler::createBook),
                 PUT("/v1/books/{id}", bookHandler::updateBook),
             )
